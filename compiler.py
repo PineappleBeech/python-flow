@@ -39,14 +39,28 @@ class CodeFile:
                     chars_left -= 1
                     continue
                 char = self.get_char(x, y)
-                if char in alphabet:
-                    if char == "v" and self.get_char(x, y - 1) == "|":
-                        continue
+                if char == "{":
                     l = 1
-                    while not (self.get_char(x + l, y) == " " and self.get_char(x + l + 1, y) == " "):
+                    depth = 1
+                    string = None
+                    while not depth == 0:
+                        if self.get_char(x+l, y) == "{" and string is None:
+                            depth += 1
+                        elif self.get_char(x+l, y) == "}" and string is None:
+                            depth -= 1
+                        elif self.get_char(x+l, y) == '"':
+                            if string is None:
+                                string = '"'
+                            elif string == '"':
+                                string = None
+                        elif self.get_char(x+l, y) == "'":
+                            if string is None:
+                                string = "'"
+                            elif string == "'":
+                                string = None
                         l += 1
 
-                    chars_left = l
+                    chars_left = l - 1
 
                     self.code_blocks.append(CodeBlock(line[x:x+l], x, y))
 
@@ -67,7 +81,7 @@ class CodeFile:
 
     def find_start(self):
         for block in self.code_blocks:
-            if block.line == "start":
+            if block.code == "start":
                 return block
 
     def arrows_from(self, x, y):
@@ -99,7 +113,7 @@ class CodeFile:
         block = self.find_start()
         while len(self.arrows_from_block(block)) > 0:
             block = self.block_at(*self.arrows_from_block(block)[0].to)
-            text += block.line + "\n"
+            text += block.code + "\n"
 
         with open(dest, "w") as f:
             f.write(text)
@@ -108,6 +122,8 @@ class CodeBlock:
     def __init__(self, line, x, y):
         self.line = line
         self.len = len(line)
+        self.code = line[1:-1]
+        self.code = self.code.strip()
         self.x = x
         self.y = y
         self.end = self.len + self.x
