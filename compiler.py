@@ -160,7 +160,9 @@ class CodeFile:
                 code += code_block + ":\n"
                 code += indent(self.resolve_tree(self.block_at(*self.arrows_from_section(block, i)[0].to))) + "\n"
 
-            code += self.resolve_tree(self.block_at(*self.arrows_from_section(block, -1)[0].to)) + "\n"
+            arrows = self.arrows_from_section(block, -1)
+            if len(arrows) > 0:
+                code += self.resolve_tree(self.block_at(*arrows[0].to)) + "\n"
 
             return code
 

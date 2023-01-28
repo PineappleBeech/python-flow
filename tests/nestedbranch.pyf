@@ -1,0 +1,39 @@
+
+        { start }
+            |                   { def __init__(self, x); then }
+            |                           ^          v
+            |                           |      { self.x = x }----->{ self.y = x }
+            |                           |
+            v                           |
+        { class Rectangle; class Square(Rectangle); then }
+                   |
+                   |
+                   |
+                   |
+                   v
+        { def __init__(self, x, y); def perimeter(self); def area(self); then }
+                 |                          |                  |
+                 |                          |                  |
+                 v                          |                  v
+        { self.x = x }                      |           { return self.x * self.y }
+                 v                          v
+        { self.y = y }          { return 2 * (self.x + self.y) }
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
