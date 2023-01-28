@@ -265,6 +265,9 @@ class Arrow:
                 elif char == "-":
                     assert current_direction[1] == 0
 
+                elif char == "+":
+                    pass
+
                 elif char == "*":
                     possible_directions = []
                     if current_direction[0] == 0:
