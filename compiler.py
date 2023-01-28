@@ -148,6 +148,9 @@ class CodeFile:
                 return block
 
     def resolve_tree(self, block):
+        if block is None:
+            raise Exception("Arrow leads to nothing")
+
         if block.simple:
             code = self.resolve_inserts(block) + "\n"
             arrows = self.arrows_from_block(block)
@@ -305,7 +308,10 @@ class Arrow:
                             break
 
                 else:
-                    raise Exception(f"Invalid character {char} at {start + 1}")
+                    if char != " ":
+                        raise Exception(f"Invalid character {char} at {start + 1}")
+                    else:
+                        raise Exception(f"Invalid character Space at {start + 1}")
 
         self.start = start
 
