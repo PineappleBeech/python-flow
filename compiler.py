@@ -46,6 +46,10 @@ class CodeFile:
                     depth = 1
                     string = None
                     while not depth == 0:
+                        if self.get_char(x+l-1, y) == "\\":
+                            l += 1
+                            continue
+
                         if self.get_char(x+l, y) == "{" and string is None:
                             depth += 1
                         elif self.get_char(x+l, y) == "}" and string is None:
@@ -116,6 +120,13 @@ class CodeFile:
                 arrows.append(arrow)
         return arrows
 
+    def arrows_to_range(self, x, y):
+        arrows = []
+        for arrow in self.arrows:
+            if arrow.to[0] in x and arrow.to[1] == y:
+                arrows.append(arrow)
+        return arrows
+
     def block_at(self, x, y):
         for block in self.code_blocks:
             if x in block.range and y == block.y:
@@ -123,20 +134,43 @@ class CodeFile:
 
     def resolve_tree(self, block):
         if block.simple:
-            code = block.code + "\n"
+            code = self.resolve_inserts(block) + "\n"
             arrows = self.arrows_from_block(block)
             if len(arrows) > 0:
                 code += self.resolve_tree(self.block_at(*arrows[0].to))
             return code
         else:
             code = ""
-            for i, code_block in enumerate(block.code[:-1]):
+            for i, code_block in enumerate(self.resolve_inserts(block)[:-1]):
                 code += code_block + ":\n"
                 code += indent(self.resolve_tree(self.block_at(*self.arrows_from_section(block, i)[0].to))) + "\n"
 
             code += self.resolve_tree(self.block_at(*self.arrows_from_section(block, -1)[0].to)) + "\n"
 
             return code
+
+
+    def resolve_inserts(self, block):
+        code = block.code
+        if not block.simple:
+            code = "\n".join(block.code)
+        index = 0
+        for r in block.insert_ranges:
+            while code[index] != "_":
+                index += 1
+
+            arrows = self.arrows_to_range(r, block.y)
+            if len(arrows) > 0:
+                insert_block = self.block_at(*arrows[0].start)
+                insert_block.parse(force_simple=True)
+                insert = self.resolve_inserts(insert_block)
+                code = code[:index] + insert + code[index+len(r):]
+            index += len(r)
+
+        if not block.simple:
+            code = code.split("\n")
+
+        return code
 
 
 
@@ -163,13 +197,14 @@ class CodeBlock:
         self.y = y
         self.end = self.len + self.x
         self.range = range(self.x, self.end)
+        self.insert_ranges = find_insert_ranges(self.line, self.x)
         self.parse()
 
-    def parse(self):
+    def parse(self, force_simple=False):
         code = self.line
         no_strings = remove_strings(code)
         semi_colons = [i for i, char in enumerate(no_strings) if char == ";"]
-        if len(semi_colons) == 0:
+        if len(semi_colons) == 0 or force_simple:
             self.simple = True
             code = code.removeprefix("{").removesuffix("}")
             code = code.strip()
@@ -246,7 +281,7 @@ class Arrow:
                             break
 
                 else:
-                    raise Exception("Invalid character")
+                    raise Exception(f"Invalid character {char} at {start + 1}")
 
         self.start = start
 
@@ -254,7 +289,11 @@ class Arrow:
 def remove_strings(code):
     no_strings = ""
     string = None
-    for char in code:
+    for i, char in enumerate(code):
+        if i > 0 and code[i-1] == "\\":
+            no_strings += char
+            continue
+
         if string is None:
             if char == '"':
                 string = '"'
@@ -275,3 +314,18 @@ def indent(code):
     lines = code.splitlines()
     lines = map(lambda x: "    "  + x, lines)
     return "\n".join(lines)
+
+
+def find_insert_ranges(line, offset=0):
+    ranges = []
+    start = None
+    for i, char in enumerate(line):
+        if start is None:
+            if char == "_":
+                start = i
+        else:
+            if char != "_":
+                ranges.append(range(start+offset, i+offset))
+                start = None
+
+    return ranges
