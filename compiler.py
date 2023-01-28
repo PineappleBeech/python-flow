@@ -2,8 +2,10 @@ import numpy as np
 
 alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+
 def compile(filename):
     file = CodeFile(filename)
+
 
 class CodeFile:
     def __init__(self, filename):
@@ -58,12 +60,15 @@ class CodeFile:
                                 string = "'"
                             elif string == "'":
                                 string = None
+
+                        if x + l >= len(line):
+                            raise Exception("Code block not closed")
+
                         l += 1
 
                     chars_left = l - 1
 
                     self.code_blocks.append(CodeBlock(line[x:x+l], x, y))
-
 
     def find_arrows(self):
         for y, line in enumerate(self.text):
@@ -93,8 +98,21 @@ class CodeFile:
 
     def arrows_from_block(self, block):
         arrows = []
+        if block.simple:
+            for arrow in self.arrows:
+                if arrow.start[0] in block.range and arrow.start[1] == block.y:
+                    arrows.append(arrow)
+        else:
+            for arrow in self.arrows:
+                if arrow.start[0] in block.sections[-1] and arrow.start[1] == block.y:
+                    arrows.append(arrow)
+
+        return arrows
+
+    def arrows_from_section(self, block, index):
+        arrows = []
         for arrow in self.arrows:
-            if arrow.start[0] in block.range and arrow.start[1] == block.y:
+            if arrow.start[0] in block.sections[index] and arrow.start[1] == block.y:
                 arrows.append(arrow)
         return arrows
 
@@ -103,17 +121,34 @@ class CodeFile:
             if x in block.range and y == block.y:
                 return block
 
+    def resolve_tree(self, block):
+        if block.simple:
+            code = block.code + "\n"
+            arrows = self.arrows_from_block(block)
+            if len(arrows) > 0:
+                code += self.resolve_tree(self.block_at(*arrows[0].to))
+            return code
+        else:
+            code = ""
+            for i, code_block in enumerate(block.code[:-1]):
+                code += code_block + ":\n"
+                code += indent(self.resolve_tree(self.block_at(*self.arrows_from_section(block, i)[0].to))) + "\n"
+
+            code += self.resolve_tree(self.block_at(*self.arrows_from_section(block, -1)[0].to)) + "\n"
+
+            return code
+
+
 
     def write(self):
         dest = self.filename.removesuffix(".pyf")
         dest = dest + ".py"
         dest = "out/" + dest
 
-        text = ""
         block = self.find_start()
-        while len(self.arrows_from_block(block)) > 0:
-            block = self.block_at(*self.arrows_from_block(block)[0].to)
-            text += block.code + "\n"
+        block = self.block_at(*self.arrows_from_block(block)[0].to)
+
+        text = self.resolve_tree(block)
 
         with open(dest, "w") as f:
             f.write(text)
@@ -122,12 +157,41 @@ class CodeBlock:
     def __init__(self, line, x, y):
         self.line = line
         self.len = len(line)
-        self.code = line[1:-1]
-        self.code = self.code.strip()
+        #self.code = line[1:-1]
+        #self.code = self.code.strip()
         self.x = x
         self.y = y
         self.end = self.len + self.x
         self.range = range(self.x, self.end)
+        self.parse()
+
+    def parse(self):
+        code = self.line
+        no_strings = remove_strings(code)
+        semi_colons = [i for i, char in enumerate(no_strings) if char == ";"]
+        if len(semi_colons) == 0:
+            self.simple = True
+            code = code.removeprefix("{").removesuffix("}")
+            code = code.strip()
+            self.code = code
+        else:
+            self.simple = False
+            self.code = []
+            start = 0
+            for semi_colon in semi_colons:
+                self.code.append(code[start:semi_colon])
+                start = semi_colon + 1
+            self.code.append(code[start:])
+
+            self.code[0] = self.code[0].removeprefix("{")
+            self.code[-1] = self.code[-1].removesuffix("}")
+            self.code = list(map(lambda x: x.strip(), self.code))
+
+            semi_colons.insert(0, -1)
+            semi_colons.append(len(code))
+
+            self.sections = [range(self.x+i+1, self.x+j) for i, j in zip(semi_colons[:-1], semi_colons[1:])]
+
 
 class Arrow:
     def __init__(self, end, file):
@@ -186,3 +250,28 @@ class Arrow:
 
         self.start = start
 
+
+def remove_strings(code):
+    no_strings = ""
+    string = None
+    for char in code:
+        if string is None:
+            if char == '"':
+                string = '"'
+            elif char == "'":
+                string = "'"
+        elif char == string:
+            string = None
+
+        if string is None:
+            no_strings += char
+        else:
+            no_strings += " "
+
+    return no_strings
+
+
+def indent(code):
+    lines = code.splitlines()
+    lines = map(lambda x: "    "  + x, lines)
+    return "\n".join(lines)
