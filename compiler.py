@@ -1,4 +1,8 @@
+import os
+
 import numpy as np
+import importlib
+import os
 
 alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -7,8 +11,17 @@ def compile(filename):
     file = CodeFile(filename)
 
 
+def import_file(filename):
+    dest = "out/" + filename.removesuffix(".pyf") + ".py"
+    dest_folder = "/".join(dest.split("/")[:-1])
+    create_dir(dest_folder)
+    file = CodeFile(filename, dest)
+    lib = importlib.import_module("out." + filename.removesuffix(".pyf").replace("/", "."))
+    return lib
+
+
 class CodeFile:
-    def __init__(self, filename):
+    def __init__(self, filename, dest=None):
         self.filename = filename
         with open(self.filename) as f:
             self.text = f.readlines()
@@ -21,7 +34,9 @@ class CodeFile:
         self.arrows = []
         self.find_arrows()
 
-        self.write()
+        self.compile()
+
+        self.write(dest)
 
     def find(self, string):
         pass
@@ -173,16 +188,20 @@ class CodeFile:
         return code
 
 
-
-    def write(self):
-        dest = self.filename.removesuffix(".pyf")
-        dest = dest + ".py"
-        dest = "out/" + dest
-
+    def compile(self):
         block = self.find_start()
         block = self.block_at(*self.arrows_from_block(block)[0].to)
 
-        text = self.resolve_tree(block)
+        self.code = self.resolve_tree(block)
+
+
+    def write(self, dest=None):
+        if dest is None:
+            dest = self.filename.removesuffix(".pyf")
+            dest = dest + ".py"
+            dest = "out/" + dest
+
+        text = self.code
 
         with open(dest, "w") as f:
             f.write(text)
@@ -315,7 +334,7 @@ def remove_strings(code):
 
 def indent(code):
     lines = code.splitlines()
-    lines = map(lambda x: "    "  + x, lines)
+    lines = map(lambda x: "    " + x, lines)
     return "\n".join(lines)
 
 
@@ -332,3 +351,8 @@ def find_insert_ranges(line, offset=0):
                 start = None
 
     return ranges
+
+
+def create_dir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
